@@ -3,6 +3,7 @@ package template
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 type ModuleParams struct {
@@ -22,30 +23,40 @@ type Module struct {
 
 func CreateModule(moduleparams ModuleParams) Module {
 	var module Module
-	// var structLoad interface{}
 
-	// switch moduleparams.Provider.Name {
-	// case "aws":
-	// 	structLoad = &AWS{}
-	// case "azurerm":
-	// 	structLoad = &AzureRM{}
-	// case "gcp":
-	// 	structLoad = &GCP{}
-	// }
-
-	// set the
-	typ := reflect.TypeOf(module.AWS)
-	if module.AWS.ModuleSource == "" {
-		f, _ := typ.FieldByName("ModuleSource")
-		module.AWS.ModuleSource = f.Tag.Get("default")
-	}
-	if module.AWS.ModuleVersion == "" {
-		f, _ := typ.FieldByName("ModuleVersion")
-		module.AWS.ModuleVersion = f.Tag.Get("default")
+	intLoad := module.AWS
+	switch moduleparams.Provider.Name {
+	case "aws":
+		s := reflect.ValueOf(&intLoad).Elem()
+		typeOfT := s.Type()
+		if intLoad.ModuleSource == "" {
+			f, _ := typeOfT.FieldByName("ModuleSource")
+			intLoad.ModuleSource = f.Tag.Get("default")
+		}
+		if intLoad.ModuleVersion == "" {
+			f, _ := typeOfT.FieldByName("ModuleVersion")
+			intLoad.ModuleVersion = f.Tag.Get("default")
+		}
+		for k, v := range moduleparams.Vars {
+			for i := 0; i < s.NumField(); i++ {
+				if strings.Replace(typeOfT.Field(i).Tag.Get("json"), ",omitempty", "", -1) == k {
+					fieldname := typeOfT.Field(i).Name
+					fieldReflect := s.FieldByName(fieldname)
+					if fieldReflect.IsValid() {
+						fieldReflect.SetString(v)
+					}
+				}
+			}
+		}
+		module.AWS = intLoad
+		// case "azurerm":
+		// 	intLoad := AzureRM{}
+		// case "gcp":
+		// 	intLoad := GCP{}
 	}
 
 	// get and set default if module name is not set
-	typ = reflect.TypeOf(moduleparams)
+	typ := reflect.TypeOf(moduleparams)
 	if moduleparams.Name == "" {
 		f, _ := typ.FieldByName("Name")
 		module.Name = f.Tag.Get("default")
